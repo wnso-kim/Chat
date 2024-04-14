@@ -3,6 +3,7 @@ package network
 import (
 	. "chat_server/types"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -48,6 +49,34 @@ func NewRoom() *Room {
 	}
 }
 
+func (c *client) Read() {
+	defer c.Socket.Close()
+
+	for {
+		var msg *message
+		err := c.Socket.ReadJSON(&msg)
+		if err != nil {
+			panic(err)
+		} else {
+			msg.Time = time.Now().Unix()
+			msg.Name = c.Name
+
+			c.Room.Forward <- msg
+		}
+	}
+}
+
+func (c *client) Write() {
+	defer c.Socket.Close()
+
+	for msg := range c.Send {
+		err := c.Socket.WriteJSON(msg)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
 func (r *Room) RunInit() {
 	// Room에 있는 모든 채널값을 받는 역할
 	for {
@@ -90,5 +119,8 @@ func (r *Room) SocketServe(c *gin.Context) {
 	// 해당 함수(소켓 통신)이 종료될 경우 호출 될 함수(로직)
 	defer func() { r.Leave <- client }()
 
-	// 로직들
+	// 읽고 쓰기 로직
+	go client.Write()
+	client.Read()
+
 }
