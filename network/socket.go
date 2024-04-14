@@ -15,6 +15,7 @@ var upgrader = &websocket.Upgrader{
 	CheckOrigin:     func(r *http.Request) bool { return true },
 }
 
+// 채널들은 모두 큐라고 생각
 type Room struct {
 	// 들어오는 메시지를 다른 클라이언트들에게 전송
 	Forward chan *message // 수신되는 메시지를 보관하는 값
@@ -22,7 +23,7 @@ type Room struct {
 	Join  chan *client // Socket이 연결되는 경우 작동
 	Leave chan *client // Socket이 끊어지는 경우에 대해서 작동
 
-	clients map[*client]bool // 현재 방에 있는 client 정보를 저장
+	Clients map[*client]bool // 현재 방에 있는 client 정보를 저장
 }
 
 type message struct {
@@ -43,7 +44,25 @@ func NewRoom() *Room {
 		Forward: make(chan *message),
 		Join:    make(chan *client),
 		Leave:   make(chan *client),
-		clients: make(map[*client]bool),
+		Clients: make(map[*client]bool),
+	}
+}
+
+func (r *Room) RunInit() {
+	// Room에 있는 모든 채널값을 받는 역할
+	for {
+		select {
+		case client := <-r.Join:
+			r.Clients[client] = true
+		case client := <-r.Leave:
+			r.Clients[client] = false
+			close(client.Send)
+			delete(r.Clients, client)
+		case msg := <-r.Forward:
+			for client := range r.Clients {
+				client.Send <- msg
+			}
+		}
 	}
 }
 
