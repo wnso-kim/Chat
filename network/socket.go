@@ -120,7 +120,8 @@ func (r *Room) SocketServe(c *gin.Context) {
 	defer func() { r.Leave <- client }()
 
 	// 읽고 쓰기 로직
-	go client.Write()
+	go client.Write() //go(고루틴): 백그라운드 동작
+
 	client.Read()
 
 }
